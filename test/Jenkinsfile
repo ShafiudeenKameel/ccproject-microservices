@@ -1,0 +1,73 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Clone Repository') {
+            steps {
+                // Clone the GitHub repository
+                git 'https://github.com/ramselvaraj/ccproject-microservices.git'
+            }
+        }
+        stage('Deploy MongoDB') {
+            steps {
+                // Deploy MongoDB using kubectl
+                sh 'kubectl apply -f mongodb-deployment.yaml'
+                sh 'kubectl apply -f mongodb-service.yaml'
+            }
+        }
+        stage('Deploy RabbitMQ') {
+            steps {
+                // Deploy RabbitMQ using kubectl
+                sh 'kubectl apply -f rabbitmq-deployment.yaml'
+                sh 'kubectl apply -f rabbitmq-service.yaml'
+            }
+        }
+        stage('Build and Deploy Microservices') {
+            steps {
+                // Build Docker images for each microservice
+                sh 'cd user-microservice'
+                sh 'docker build -t user-microservice ./user-microservice'
+                sh 'cd ..'
+                sh 'cd product-microservice'
+                sh 'docker build -t product-microservice ./product-microservice'
+                sh 'cd ..'
+                sh 'cd order-microservice'
+                sh 'docker build -t order-microservice ./order-microservice'
+
+                // Push Docker images to a container registry (e.g., Docker Hub)
+                //sh 'docker push your-username/user-microservice'
+                //sh 'docker push your-username/product-microservice'
+                //sh 'docker push your-username/order-microservice'
+
+                // Deploy microservices using kubectl
+sh 'cd ..'
+                sh 'cd user-microservice'
+                sh 'kubectl apply -f user-microservice-deployment.yaml'
+                sh 'kubectl apply -f user-microservice-service.yaml'
+sh 'cd ..'
+                sh 'cd product-microservice'                
+sh 'kubectl apply -f product-microservice-deployment.yaml'
+                sh 'kubectl apply -f product-microservice-service.yaml'
+sh 'cd ..'
+                sh 'cd order-microservice'
+                sh 'kubectl apply -f order-microservice-deployment.yaml'
+                sh 'kubectl apply -f order-microservice-service.yaml'
+            }
+        }
+        stage('Port Forwarding') {
+            steps {
+                // Port forward each microservice for local testing
+                sh 'kubectl port-forward services/user-microservice 7070:7070'
+                sh 'kubectl port-forward services/product-microservice 8080:8080'
+                sh 'kubectl port-forward services/order-microservice 9090:9090'
+            }
+        }
+    }
+
+    post {
+        always {
+            // Clean up port forwarding processes
+            sh 'pkill -f "kubectl port-forward"'
+        }
+    }
+}
